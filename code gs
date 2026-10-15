@@ -1,0 +1,853 @@
+/* === START: ARTIMAIL CONFIG === */
+const CFG = {
+  BRAND: 'ArtiBytte Inc.',
+  SENDER_NAME: 'ArtiBytte Inc.',
+  REPLY_TO: 'support@artibytte.com',
+  WEBSITE: 'https://artibytte.com',          // change to your live site
+  FOOTER_NOTE: 'Philippines',
+
+  // Sheets
+  SHEET_SUBS: 'Subscribers',
+  SHEET_MSG: 'Message',
+  SHEET_LOG: 'SendLog',             // per-recipient send ledger
+  SHEET_CAMPAIGNS: 'Campaigns',     // one row per campaign
+  SHEET_AUDIT: 'Audit',             // who did what, when
+  SHEET_SUPP: 'Suppression',        // emails that must never be mailed (survives row deletion)
+
+  COL: { NAME: 1, PHONE: 2, EMAIL: 3, STATUS: 4, LAST_SENT: 5, TOKEN: 6 },
+  EMAIL_RE: /^[^\s@,;<>"']+@[^\s@,;<>"']+\.[^\s@,;<>"']+$/,
+  URL_RE: /^https:\/\/[^\s"'<>\\]+$/i,
+
+  // Access control: the Sheet owner is always an admin. Add more admins here.
+  ADMIN_EMAILS: [],                 // e.g. ['you@artibytte.com']
+
+  // Behaviour
+  AUTO_OPEN_COMPOSER: false,        // true = composer opens every time the Sheet opens
+  AUTO_SEND_ON_EDIT: true,          // send to a subscriber as soon as their email is typed in
+  AUTO_SEND_MAX_ROWS: 50,           // bigger pastes are NOT auto-sent; use the menu instead
+  QUOTA_RESERVE: 10,                // emails always left unused in the daily quota
+  MAX_RUNTIME_MS: 4.5 * 60 * 1000,  // stop cleanly before the 6-minute Apps Script limit
+  RETRIES: 3,
+  DUP_WINDOW_MIN: 15,               // block an identical campaign sent again within this window
+  BACKUPS_TO_KEEP: 5,
+
+  // Eligible Status values (blank counts as Active). Anything else is suppressed.
+  STATUS_OK: ['', 'active'],
+  STATUS_LIST: ['Active', 'Unsubscribed', 'Bounced', 'Invalid', 'Complaint'],
+
+  LIMITS: { subject: 200, eyebrow: 60, headline: 200, body: 5000, ctaLabel: 60, image: 2000, ctaUrl: 2000, preheader: 150 }
+};
+
+const LOG_HEADERS = ['Campaign ID', 'Timestamp', 'Email', 'Status', 'Error', 'Attempts'];
+const CAMPAIGN_HEADERS = ['Campaign ID', 'Created', 'Operator', 'Mode', 'Subject', 'Recipients', 'Sent', 'Failed', 'Skipped', 'State', 'Hash', 'Message JSON'];
+const AUDIT_HEADERS = ['Timestamp', 'Operator', 'Action', 'Detail'];
+const SUPP_HEADERS = ['Email', 'Added', 'Reason'];
+/* === END: ARTIMAIL CONFIG === */
+
+
+/* === START: ARTIMAIL SECURITY + AUDIT === */
+// NOTE: Any public function (no trailing underscore) can be invoked by google.script.run
+// when this project is deployed as a web app. Every admin function therefore calls requireAdmin_().
+function adminList_() {
+  var list = CFG.ADMIN_EMAILS.slice();
+  try {
+    var owner = SpreadsheetApp.getActive().getOwner();
+    if (owner) list.push(owner.getEmail());
+  } catch (e) {}
+  return list.map(function (x) { return String(x).toLowerCase(); });
+}
+
+function requireAdmin_() {
+  var me = String(Session.getActiveUser().getEmail() || '').toLowerCase();
+  if (!me || adminList_().indexOf(me) < 0) throw new Error('Not authorized.');
+  return me;
+}
+
+function operator_() {
+  return String(Session.getActiveUser().getEmail() || '') || 'trigger';
+}
+
+function opSheet_(name, headers) {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.getRange(1, 1, 1, headers.length).setValues([headers])
+      .setFontWeight('bold').setBackground('#111111').setFontColor('#FFFFFF');
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function audit_(action, detail, who) {
+  try {
+    opSheet_(CFG.SHEET_AUDIT, AUDIT_HEADERS)
+      .appendRow([new Date(), who || operator_(), action, String(detail || '').slice(0, 2000)]);
+  } catch (e) { console.error('audit failed', action, e); }
+}
+
+function notifyAdmin_(subject, body) {
+  try {
+    var to = adminList_()[0];
+    if (to && MailApp.getRemainingDailyQuota() > 0) MailApp.sendEmail(to, '[ArtiMail] ' + subject, body);
+  } catch (e) { console.error('notify failed', e); }
+}
+
+function withLock_(ms, fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(ms)) throw new Error('Another send or edit is running. Try again in a moment.');
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+function sheet_(name) {
+  var sh = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sh) throw new Error('Sheet "' + name + '" not found. Run "ArtiBytte Mail > Run setup (first time)".');
+  return sh;
+}
+
+function hash_(s) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)
+    .map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('').slice(0, 16);
+}
+/* === END: ARTIMAIL SECURITY + AUDIT === */
+
+
+/* === START: ARTIMAIL HELPERS === */
+function esc_(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function bodyToHtml_(text) {
+  return String(text || '').split(/\n{2,}/).map(function (p) {
+    return '<p style="margin:0 0 18px;font-size:16px;line-height:1.65;color:#2B2B2B;">' +
+      esc_(p.trim()).replace(/\n/g, '<br>') + '</p>';
+  }).join('');
+}
+
+function firstName_(name) {
+  return String(name || '').trim().split(/\s+/)[0] || 'there';
+}
+
+// Cleans, limits and validates a message. lenient = true skips the "required" checks (for drafts).
+function normalizeMessage_(m, lenient) {
+  m = m || {};
+  var L = CFG.LIMITS, errs = [];
+  function s(k) {
+    var v = String(m[k] == null ? '' : m[k]).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+    if (v.length > L[k]) { errs.push(k + ' is too long (max ' + L[k] + ' characters).'); v = v.slice(0, L[k]); }
+    return v;
+  }
+  var out = {
+    subject: s('subject').replace(/[\r\n]+/g, ' '),
+    eyebrow: s('eyebrow').replace(/[\r\n]+/g, ' '),
+    headline: s('headline').replace(/[\r\n]+/g, ' '),
+    body: s('body'),
+    image: s('image'),
+    ctaLabel: s('ctaLabel').replace(/[\r\n]+/g, ' '),
+    ctaUrl: s('ctaUrl'),
+    preheader: s('preheader').replace(/[\r\n]+/g, ' ')
+  };
+  if (!lenient) {
+    if (!out.subject) errs.push('Subject is required.');
+    if (!out.headline) errs.push('Headline is required.');
+  }
+  if (out.image && !CFG.URL_RE.test(out.image)) errs.push('Image URL must start with https:// and contain no spaces or quotes.');
+  if (out.ctaUrl && !CFG.URL_RE.test(out.ctaUrl)) errs.push('Button link must start with https:// and contain no spaces or quotes.');
+  if (out.ctaUrl && !out.ctaLabel) out.ctaLabel = 'Learn more';
+  if (!out.preheader) out.preheader = out.headline.slice(0, L.preheader);
+  return { msg: out, errors: errs };
+}
+
+function readMessage_() {
+  var sh = sheet_(CFG.SHEET_MSG);
+  var v = sh.getRange('B1:B8').getValues().map(function (r) { return String(r[0] || '').trim(); });
+  return {
+    subject: v[0], eyebrow: v[1], headline: v[2], body: v[3],
+    image: v[4], ctaLabel: v[5], ctaUrl: v[6], preheader: v[7]
+  };
+}
+
+function writeMessage_(m) {
+  var sh = sheet_(CFG.SHEET_MSG);
+  sh.getRange('B1:B8').setValues([
+    [m.subject], [m.eyebrow], [m.headline], [m.body],
+    [m.image], [m.ctaLabel], [m.ctaUrl], [m.preheader]
+  ]);
+}
+
+// The message used for auto-sends to newly typed subscribers: the last message actually sent
+// in a campaign (never a half-edited draft). Falls back to the Message sheet if none exists yet.
+function liveMessage_() {
+  var raw = PropertiesService.getDocumentProperties().getProperty('LIVE_MSG');
+  if (raw) { try { return JSON.parse(raw); } catch (e) {} }
+  return readMessage_();
+}
+
+function setLive_(msg) {
+  PropertiesService.getDocumentProperties().setProperty('LIVE_MSG', JSON.stringify(msg));
+}
+
+function unsubUrl_(sub) {
+  var base = '';
+  try { base = ScriptApp.getService().getUrl(); } catch (e) {}
+  return base
+    ? base + '?action=unsubscribe&token=' + encodeURIComponent(sub.token)
+    : 'mailto:' + CFG.REPLY_TO + '?subject=Unsubscribe';
+}
+
+function renderEmail_(msg, sub) {
+  var t = HtmlService.createTemplateFromFile('EmailTemplate');
+  t.msg = msg;
+  t.cfg = CFG;
+  t.firstName = firstName_(sub.name);
+  t.bodyHtml = bodyToHtml_(msg.body);
+  t.unsubUrl = unsubUrl_(sub);
+  return t.evaluate().getContent();
+}
+
+function plainText_(msg, sub) {
+  return 'Hi ' + firstName_(sub.name) + ',\n\n' + msg.headline + '\n\n' + msg.body +
+    (msg.ctaUrl ? '\n\n' + (msg.ctaLabel || 'Learn more') + ': ' + msg.ctaUrl : '') +
+    '\n\n— ' + CFG.BRAND +
+    '\n\nUnsubscribe: ' + unsubUrl_(sub);
+}
+
+function sendOne_(sub, msg) {
+  MailApp.sendEmail({
+    to: sub.email,
+    subject: msg.subject,
+    body: plainText_(msg, sub),
+    htmlBody: renderEmail_(msg, sub),
+    name: CFG.SENDER_NAME,
+    replyTo: CFG.REPLY_TO
+  });
+}
+
+// Retries transient errors with backoff. Permanent and quota errors are not retried.
+function sendWithRetry_(sub, msg) {
+  var last = '';
+  for (var a = 1; a <= CFG.RETRIES; a++) {
+    try {
+      sendOne_(sub, msg);
+      return { ok: true, attempts: a };
+    } catch (e) {
+      last = String((e && e.message) || e);
+      if (/invalid email|invalid argument/i.test(last)) return { ok: false, error: last, attempts: a };
+      if (/too many times|quota|limit exceeded/i.test(last)) return { ok: false, error: last, attempts: a, quota: true };
+      if (a < CFG.RETRIES) Utilities.sleep(500 * Math.pow(2, a));
+    }
+  }
+  return { ok: false, error: last, attempts: CFG.RETRIES };
+}
+/* === END: ARTIMAIL HELPERS === */
+
+
+/* === START: ARTIMAIL SUBSCRIBERS + SUPPRESSION === */
+function readSubs_(sh) {
+  var last = sh.getLastRow();
+  if (last < 2) return [];
+  var c = CFG.COL;
+  return sh.getRange(2, 1, last - 1, 6).getValues().map(function (v, i) {
+    return {
+      row: i + 2,
+      name: v[c.NAME - 1],
+      email: String(v[c.EMAIL - 1] || '').trim(),
+      status: String(v[c.STATUS - 1] || '').trim(),
+      last: v[c.LAST_SENT - 1],
+      token: String(v[c.TOKEN - 1] || '').trim()
+    };
+  });
+}
+
+function suppressed_() {
+  var set = {};
+  var sh = SpreadsheetApp.getActive().getSheetByName(CFG.SHEET_SUPP);
+  if (sh && sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (r) {
+      var e = String(r[0] || '').trim().toLowerCase();
+      if (e) set[e] = true;
+    });
+  }
+  return set;
+}
+
+function suppress_(email, reason) {
+  var e = String(email || '').trim().toLowerCase();
+  if (!e) return;
+  if (suppressed_()[e]) return;
+  opSheet_(CFG.SHEET_SUPP, SUPP_HEADERS).appendRow([e, new Date(), reason || '']);
+}
+
+// ONE authoritative eligibility check used by every send path.
+// Suppressed = bad status OR in Suppression sheet. Duplicates are sent once.
+function buildTargets_(sh, onlyNew, onlyRows) {
+  var subs = readSubs_(sh), supp = suppressed_(), seen = {}, tokens = {}, rows = [];
+  var sk = { invalid: 0, suppressed: 0, duplicate: 0, alreadySent: 0 };
+
+  subs.forEach(function (s) {
+    var em = s.email.toLowerCase();
+    if (s.token) tokens[s.token] = (tokens[s.token] || 0) + 1;
+    if (em && CFG.STATUS_OK.indexOf(s.status.toLowerCase()) < 0) supp[em] = true;  // any row opting out blocks the address
+  });
+
+  subs.forEach(function (s) {
+    if (!s.email && !s.name) return;
+    var em = s.email.toLowerCase();
+    if (!CFG.EMAIL_RE.test(s.email)) { sk.invalid++; return; }
+    if (supp[em]) { sk.suppressed++; return; }
+    if (seen[em]) { sk.duplicate++; return; }
+    seen[em] = true;
+    if (onlyRows && !onlyRows[s.row]) return;
+    if (onlyNew && s.last) { sk.alreadySent++; return; }
+    rows.push(s);
+  });
+  return { rows: rows, skipped: sk, tokens: tokens };
+}
+
+function composerStats_() {
+  var sh = sheet_(CFG.SHEET_SUBS);
+  var all = buildTargets_(sh, false);
+  var fresh = buildTargets_(sh, true);
+  return {
+    active: all.rows.length,
+    fresh: fresh.rows.length,
+    quota: MailApp.getRemainingDailyQuota(),
+    duplicates: all.skipped.duplicate,
+    suppressed: all.skipped.suppressed,
+    invalid: all.skipped.invalid
+  };
+}
+/* === END: ARTIMAIL SUBSCRIBERS + SUPPRESSION === */
+
+
+/* === START: ARTIMAIL LEDGER + CAMPAIGNS === */
+function newCampaignId_(prefix) {
+  return (prefix || 'C') + '-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss') +
+    '-' + Math.floor(Math.random() * 9000 + 1000);
+}
+
+function ledger_(id, email, status, err, attempts) {
+  try {
+    opSheet_(CFG.SHEET_LOG, LOG_HEADERS).appendRow([id, new Date(), email, status, String(err || '').slice(0, 500), attempts || 0]);
+  } catch (e) { console.error('ledger write failed', id, email, status, e); }
+}
+
+function ledgerSent_(id) {
+  var set = {};
+  var sh = opSheet_(CFG.SHEET_LOG, LOG_HEADERS), last = sh.getLastRow();
+  if (last < 2) return set;
+  sh.getRange(2, 1, last - 1, 4).getValues().forEach(function (v) {
+    if (v[0] === id && v[3] === 'SENT') set[String(v[2]).toLowerCase()] = true;
+  });
+  return set;
+}
+
+function createCampaign_(id, mode, msg, recipients, hash) {
+  opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS).appendRow([
+    id, new Date(), operator_(), mode, msg.subject, recipients, 0, 0, 0, 'RUNNING', hash, JSON.stringify(msg)
+  ]);
+}
+
+function campaignRow_(id) {
+  var sh = opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS);
+  var f = sh.getRange('A:A').createTextFinder(id).matchEntireCell(true).findNext();
+  return f ? f.getRow() : 0;
+}
+
+function updateCampaign_(id, add, state) {
+  var sh = opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS), row = campaignRow_(id);
+  if (!row) return;
+  var cur = sh.getRange(row, 7, 1, 4).getValues()[0];   // Sent, Failed, Skipped, State
+  sh.getRange(row, 7, 1, 4).setValues([[
+    (Number(cur[0]) || 0) + (add.sent || 0),
+    (Number(cur[1]) || 0) + (add.failed || 0),
+    (Number(cur[2]) || 0) + (add.skipped || 0),
+    state || cur[3]
+  ]]);
+}
+
+function findRecentCampaign_(hash, minutes) {
+  var sh = opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS), last = sh.getLastRow();
+  if (last < 2) return null;
+  var cutoff = Date.now() - minutes * 60000;
+  var v = sh.getRange(2, 1, last - 1, 11).getValues();
+  for (var i = v.length - 1; i >= 0; i--) {
+    var created = v[i][1] instanceof Date ? v[i][1].getTime() : 0;
+    if (created < cutoff) break;
+    if (v[i][10] === hash) return String(v[i][0]);
+  }
+  return null;
+}
+
+function lastOpenCampaign_() {
+  var sh = opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS), last = sh.getLastRow();
+  if (last < 2) return null;
+  var v = sh.getRange(2, 1, last - 1, 12).getValues();
+  for (var i = v.length - 1; i >= 0; i--) {
+    if (v[i][9] === 'RUNNING' || v[i][9] === 'PARTIAL') {
+      return { id: String(v[i][0]), mode: String(v[i][3]), msg: JSON.parse(v[i][11]) };
+    }
+  }
+  return null;
+}
+
+function snapshotSubscribers_() {
+  try {
+    var ss = SpreadsheetApp.getActive(), sh = sheet_(CFG.SHEET_SUBS);
+    var name = 'Backup ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HHmm');
+    var cp = sh.copyTo(ss).setName(name);
+    cp.hideSheet();
+    var backups = ss.getSheets().filter(function (s) { return s.getName().indexOf('Backup ') === 0; })
+      .sort(function (a, b) { return a.getName() < b.getName() ? 1 : -1; });
+    backups.slice(CFG.BACKUPS_TO_KEEP).forEach(function (s) { ss.deleteSheet(s); });
+  } catch (e) { audit_('BACKUP_FAILED', e.message); }
+}
+/* === END: ARTIMAIL LEDGER + CAMPAIGNS === */
+
+
+/* === START: ARTIMAIL SEND ENGINE === */
+// Sends one campaign. Safe to call again with the same id: recipients already marked SENT
+// in the ledger are skipped, so an interrupted run can be resumed without duplicates.
+// mode: 'new' | 'all' | 'auto'.  onlyRows: optional {rowNumber: true} filter.
+function runCampaign_(id, msg, mode, onlyRows) {
+  var sh = sheet_(CFG.SHEET_SUBS), c = CFG.COL;
+  var t = buildTargets_(sh, mode !== 'all', onlyRows);
+  var done = ledgerSent_(id), start = Date.now();
+  var r = { sent: 0, failed: 0, skipped: 0, remaining: 0, stopped: '' };
+
+  for (var i = 0; i < t.rows.length; i++) {
+    var s = t.rows[i], em = s.email.toLowerCase();
+    if (done[em]) { r.skipped++; continue; }
+
+    if (Date.now() - start > CFG.MAX_RUNTIME_MS) r.stopped = 'time';
+    else if (MailApp.getRemainingDailyQuota() <= CFG.QUOTA_RESERVE) r.stopped = 'quota';
+    if (r.stopped) {
+      for (var j = i; j < t.rows.length; j++) if (!done[t.rows[j].email.toLowerCase()]) r.remaining++;
+      break;
+    }
+
+    // Fresh re-read: the sheet may have been edited or sorted since the list was built.
+    var v = sh.getRange(s.row, 1, 1, 6).getValues()[0];
+    var curEmail = String(v[c.EMAIL - 1] || '').trim().toLowerCase();
+    var curStatus = String(v[c.STATUS - 1] || '').trim().toLowerCase();
+    if (curEmail !== em || CFG.STATUS_OK.indexOf(curStatus) < 0 || (mode !== 'all' && v[c.LAST_SENT - 1])) {
+      r.skipped++; continue;
+    }
+
+    var token = String(v[c.TOKEN - 1] || '').trim();
+    if (!token || t.tokens[token] > 1) token = Utilities.getUuid();
+
+    var out = sendWithRetry_({ name: v[c.NAME - 1], email: s.email, token: token }, msg);
+    if (out.ok) {
+      ledger_(id, s.email, 'SENT', '', out.attempts);          // ledger first: it is the source of truth
+      try {
+        sh.getRange(s.row, c.STATUS, 1, 3).setValues([['Active', new Date(), token]]);
+      } catch (e) { audit_('SHEET_WRITE_FAILED', id + ' row ' + s.row + ': ' + e.message); }
+      done[em] = true;
+      r.sent++;
+    } else {
+      ledger_(id, s.email, 'FAILED', out.error, out.attempts);
+      if (/invalid email/i.test(out.error)) {
+        try { sh.getRange(s.row, c.STATUS).setValue('Invalid'); } catch (e) {}
+      }
+      r.failed++;
+      if (out.quota) {
+        r.stopped = 'quota';
+        for (var k = i + 1; k < t.rows.length; k++) if (!done[t.rows[k].email.toLowerCase()]) r.remaining++;
+        break;
+      }
+    }
+  }
+  SpreadsheetApp.flush();
+
+  var state = r.stopped ? 'PARTIAL' : (r.failed ? 'COMPLETE_WITH_ERRORS' : 'COMPLETE');
+  updateCampaign_(id, r, state);
+  r.state = state;
+  r.campaignId = id;
+  if (r.failed || r.stopped) {
+    notifyAdmin_('Campaign ' + id + ' ' + state,
+      'Sent: ' + r.sent + '\nFailed: ' + r.failed + '\nRemaining: ' + r.remaining +
+      (r.stopped ? '\nStopped because of: ' + r.stopped : '') +
+      '\n\nUse "ArtiBytte Mail > Resume interrupted campaign" to continue.');
+  }
+  return r;
+}
+
+function startCampaign_(m, mode) {
+  var user = requireAdmin_();
+  if (mode !== 'new' && mode !== 'all') throw new Error('Unknown send mode.');
+  var n = normalizeMessage_(m);
+  if (n.errors.length) throw new Error(n.errors.join(' '));
+  var msg = n.msg;
+
+  return withLock_(30000, function () {
+    var sh = sheet_(CFG.SHEET_SUBS);
+    var t = buildTargets_(sh, mode === 'new');
+    if (!t.rows.length) return { sent: 0, failed: 0, state: 'EMPTY', stats: composerStats_() };
+
+    var hash = hash_([msg.subject, msg.headline, msg.body, msg.image, msg.ctaUrl, mode].join('|'));
+    var dup = findRecentCampaign_(hash, CFG.DUP_WINDOW_MIN);
+    if (dup) throw new Error('This exact message was already sent in the last ' + CFG.DUP_WINDOW_MIN +
+      ' minutes (campaign ' + dup + '). Change the message or wait before sending again.');
+
+    snapshotSubscribers_();
+    writeMessage_(msg);           // Message sheet = last saved/sent version
+    setLive_(msg);                // snapshot used for auto-sends to new subscribers
+    var id = newCampaignId_('C');
+    createCampaign_(id, mode, msg, t.rows.length, hash);
+    audit_('CAMPAIGN_START', id + ' mode=' + mode + ' recipients=' + t.rows.length + ' subject=' + msg.subject, user);
+
+    var r = runCampaign_(id, msg, mode);
+    audit_('CAMPAIGN_END', id + ' state=' + r.state + ' sent=' + r.sent + ' failed=' + r.failed + ' remaining=' + r.remaining, user);
+    r.stats = composerStats_();
+    return r;
+  });
+}
+
+function resumeCampaign_() {
+  var user = requireAdmin_();
+  return withLock_(30000, function () {
+    var c = lastOpenCampaign_();
+    if (!c) return { sent: 0, failed: 0, state: 'NOTHING_TO_RESUME', stats: composerStats_() };
+    audit_('CAMPAIGN_RESUME', c.id, user);
+    var r = runCampaign_(c.id, c.msg, c.mode);
+    audit_('CAMPAIGN_END', c.id + ' state=' + r.state + ' sent=' + r.sent + ' failed=' + r.failed + ' remaining=' + r.remaining, user);
+    r.stats = composerStats_();
+    return r;
+  });
+}
+
+function sendTest_(m) {
+  var user = requireAdmin_();
+  var n = normalizeMessage_(m);
+  if (n.errors.length) throw new Error(n.errors.join(' '));
+  var me = Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail();
+  if (!me || !CFG.EMAIL_RE.test(me)) throw new Error('Could not determine your email address for the test send.');
+  sendOne_({ name: 'Efrenster', email: me, token: 'test' }, n.msg);
+  audit_('TEST_SEND', 'to ' + me + ' subject=' + n.msg.subject, user);
+  return me;
+}
+/* === END: ARTIMAIL SEND ENGINE === */
+
+
+/* === START: ARTIMAIL ON-EDIT TRIGGER === */
+// Installed by setupArtiMail(). Simple onEdit cannot send mail, so this is an installable trigger.
+function onEditSend(e) {
+  if (!CFG.AUTO_SEND_ON_EDIT || !e || !e.range) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() !== CFG.SHEET_SUBS) return;
+  var c = CFG.COL;
+  if (e.range.getColumn() > c.EMAIL || e.range.getLastColumn() < c.EMAIL) return;
+
+  var first = Math.max(2, e.range.getRow()), lastRow = e.range.getLastRow();
+  if (lastRow < first) return;
+  if (lastRow - first + 1 > CFG.AUTO_SEND_MAX_ROWS) {
+    audit_('AUTO_SEND_SKIPPED', 'Large edit (' + (lastRow - first + 1) + ' rows). Use the menu to send.', 'trigger');
+    return;
+  }
+
+  try {
+    withLock_(20000, function () {
+      var n = normalizeMessage_(liveMessage_());
+      if (n.errors.length) { audit_('AUTO_SEND_SKIPPED', 'Message invalid: ' + n.errors.join(' '), 'trigger'); return; }
+
+      // One email cell changed to a different address = a different person: reset identity.
+      if (e.range.getNumRows() === 1 && e.range.getNumColumns() === 1 && e.oldValue !== undefined) {
+        sh.getRange(first, c.STATUS, 1, 3).clearContent();
+      }
+      var only = {};
+      for (var r = first; r <= lastRow; r++) only[r] = true;
+
+      var id = newCampaignId_('AUTO');
+      createCampaign_(id, 'auto', n.msg, Object.keys(only).length, '');
+      runCampaign_(id, n.msg, 'auto', only);
+    });
+  } catch (err) {
+    audit_('AUTO_SEND_ERROR', err.message, 'trigger');
+    notifyAdmin_('Auto-send error', String(err && err.message || err));
+  }
+}
+/* === END: ARTIMAIL ON-EDIT TRIGGER === */
+
+
+/* === START: ARTIMAIL COMPOSER SERVER === */
+function composerInclude_(file) {
+  return HtmlService.createHtmlOutputFromFile(file).getContent();
+}
+
+function openComposer() {
+  requireAdmin_();
+  var out = HtmlService.createTemplateFromFile('Composer').evaluate()
+    .setWidth(1120).setHeight(700);
+  SpreadsheetApp.getUi().showModelessDialog(out, 'ArtiBytte Mail Composer');
+}
+
+// ---- called from the Composer window (google.script.run) ----
+function composerLoad() {
+  requireAdmin_();
+  return { msg: readMessage_(), stats: composerStats_() };
+}
+
+function composerPreview(m) {
+  requireAdmin_();
+  return renderEmail_(normalizeMessage_(m, true).msg, { name: 'Juan Dela Cruz', email: '', token: 'preview' });
+}
+
+function composerSave(m) {
+  var user = requireAdmin_();
+  var n = normalizeMessage_(m, true);          // drafts may be incomplete, but URLs/limits are still checked
+  var urlErr = n.errors.filter(function (x) { return /URL|link|too long/.test(x); });
+  if (urlErr.length) throw new Error(urlErr.join(' '));
+  writeMessage_(n.msg);
+  audit_('SAVE_DRAFT', n.msg.subject, user);
+  return composerStats_();
+}
+
+function composerSend(m, mode) {
+  if (mode === 'test') {
+    var to = sendTest_(m);
+    return { sent: 1, to: to, failed: 0, state: 'TEST', stats: composerStats_() };
+  }
+  return startCampaign_(m, mode);
+}
+
+function composerResume() {
+  return resumeCampaign_();
+}
+/* === END: ARTIMAIL COMPOSER SERVER === */
+
+
+/* === START: ARTIMAIL BROADCAST + MENU === */
+function summarize_(r) {
+  if (r.state === 'EMPTY') return 'No recipients to send to.';
+  if (r.state === 'NOTHING_TO_RESUME') return 'No interrupted campaign to resume.';
+  return 'Campaign ' + (r.campaignId || '') + ': ' + r.state + '\nSent: ' + r.sent + '\nFailed: ' + r.failed +
+    (r.remaining ? '\nRemaining: ' + r.remaining + ' (use "Resume interrupted campaign")' : '') +
+    '\n\nDetails are in the "SendLog" sheet.';
+}
+
+function broadcast_(onlyNew) {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    requireAdmin_();
+    var n = normalizeMessage_(readMessage_());
+    if (n.errors.length) { ui.alert('Fix the "Message" sheet first:\n\n' + n.errors.join('\n')); return; }
+
+    var t = buildTargets_(sheet_(CFG.SHEET_SUBS), onlyNew);
+    if (!t.rows.length) { ui.alert('No recipients to send to.'); return; }
+
+    var quota = MailApp.getRemainingDailyQuota();
+    var note = '\n\nSkipped: ' + t.skipped.duplicate + ' duplicate, ' + t.skipped.suppressed + ' suppressed/unsubscribed, ' +
+      t.skipped.invalid + ' invalid.' +
+      (t.rows.length > quota - CFG.QUOTA_RESERVE ? '\n\nQuota left today: ' + quota + '. The send will pause and can be resumed.' : '');
+    var go = ui.alert('Send "' + n.msg.subject + '" to ' + t.rows.length + ' people?' + note, ui.ButtonSet.YES_NO);
+    if (go !== ui.Button.YES) return;
+
+    ui.alert(summarize_(startCampaign_(n.msg, onlyNew ? 'new' : 'all')));
+  } catch (e) {
+    ui.alert('Not sent: ' + e.message);
+  }
+}
+
+function sendToNewOnly() { broadcast_(true); }       // = subscribers never sent anything yet
+function sendToAllActive() { broadcast_(false); }
+
+function resumeInterruptedCampaign() {
+  var ui = SpreadsheetApp.getUi();
+  try { ui.alert(summarize_(resumeCampaign_())); } catch (e) { ui.alert('Not resumed: ' + e.message); }
+}
+
+function sendTestToMe() {
+  var ui = SpreadsheetApp.getUi();
+  try { ui.alert('Test sent to ' + sendTest_(readMessage_())); } catch (e) { ui.alert('Test not sent: ' + e.message); }
+}
+
+function previewEmail() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    requireAdmin_();
+    var n = normalizeMessage_(readMessage_(), true);
+    var html = renderEmail_(n.msg, { name: 'Juan Dela Cruz', email: '', token: 'preview' });
+    ui.showModalDialog(HtmlService.createHtmlOutput(html).setWidth(680).setHeight(720), 'Email preview');
+  } catch (e) { ui.alert(e.message); }
+}
+
+// Fills "Last Sent" for anyone the ledger says was sent but the sheet missed (e.g. a failed sheet write).
+function reconcileSendLog() {
+  var ui = SpreadsheetApp.getUi();
+  try {
+    var user = requireAdmin_();
+    var fixed = withLock_(30000, function () {
+      var log = opSheet_(CFG.SHEET_LOG, LOG_HEADERS), last = log.getLastRow();
+      if (last < 2) return 0;
+      var latest = {};
+      log.getRange(2, 1, last - 1, 4).getValues().forEach(function (v) {
+        if (v[3] === 'SENT' && String(v[0]).indexOf('AUTO') !== 0 || v[3] === 'SENT') {
+          var e = String(v[2]).toLowerCase();
+          if (!latest[e] || v[1] > latest[e]) latest[e] = v[1];
+        }
+      });
+      var sh = sheet_(CFG.SHEET_SUBS), c = CFG.COL, n = 0;
+      readSubs_(sh).forEach(function (s) {
+        var e = s.email.toLowerCase();
+        if (!s.last && latest[e]) { sh.getRange(s.row, c.LAST_SENT).setValue(latest[e]); n++; }
+      });
+      return n;
+    });
+    audit_('RECONCILE', 'rows fixed: ' + fixed, user);
+    ui.alert('Reconciled. Rows corrected: ' + fixed);
+  } catch (e) { ui.alert('Reconcile failed: ' + e.message); }
+}
+
+/* === START: ONOPEN EDIT === */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('ArtiBytte Mail')
+    .addItem('Open composer', 'openComposer')
+    .addItem('Preview email', 'previewEmail')
+    .addItem('Send test to me', 'sendTestToMe')
+    .addSeparator()
+    .addItem('Send to never-sent subscribers', 'sendToNewOnly')
+    .addItem('Send to ALL active subscribers', 'sendToAllActive')
+    .addItem('Resume interrupted campaign', 'resumeInterruptedCampaign')
+    .addSeparator()
+    .addItem('Reconcile send log', 'reconcileSendLog')
+    .addItem('Run setup (first time)', 'setupArtiMail')
+    .addToUi();
+  if (CFG.AUTO_OPEN_COMPOSER) {
+    try { openComposer(); } catch (e) { /* non-admin: menu only */ }
+  }
+}
+/* === END: ONOPEN EDIT === */
+/* === END: ARTIMAIL BROADCAST + MENU === */
+
+
+/* === START: ARTIMAIL UNSUBSCRIBE WEB APP === */
+function page_(title, innerHtml) {
+  return HtmlService.createHtmlOutput(
+    '<div style="font-family:Georgia,serif;background:#ECE4D6;min-height:100vh;display:flex;align-items:center;justify-content:center;margin:0">' +
+    '<div style="background:#fff;border-radius:24px;padding:40px;max-width:420px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.08)">' +
+    '<div style="letter-spacing:.3em;font-size:12px;color:#B08D3C;margin-bottom:16px">ARTIBYTTE</div>' +
+    '<h2 id="t" style="margin:0 0 12px;color:#111">' + esc_(title) + '</h2>' + innerHtml + '</div></div>'
+  ).setTitle(CFG.BRAND).addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// GET only SHOWS a confirmation button. The state change happens in unsubscribeConfirm(),
+// so email security scanners that open links cannot unsubscribe people by accident.
+function doGet(e) {
+  try {
+    var token = String((e && e.parameter && e.parameter.token) || '');
+    if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) {
+      return page_('Link not valid', '<p style="color:#555;line-height:1.6;margin:0">This link is invalid or expired. You can also reply to any of our emails to unsubscribe.</p>');
+    }
+    return page_('Unsubscribe?',
+      '<p id="m" style="color:#555;line-height:1.6;margin:0 0 20px">Confirm that you no longer want to receive emails from ' + esc_(CFG.BRAND) + '.</p>' +
+      '<button id="b" style="background:#111;color:#fff;border:0;border-radius:999px;padding:14px 28px;font-size:15px;cursor:pointer">Yes, unsubscribe me</button>' +
+      '<script>' +
+      'var T=' + JSON.stringify(token) + ';' +
+      'document.getElementById("b").onclick=function(){var b=this;b.disabled=true;b.textContent="Please wait...";' +
+      'google.script.run.withSuccessHandler(function(ok){' +
+      'document.getElementById("t").textContent=ok?"You have been unsubscribed":"Link not valid";' +
+      'document.getElementById("m").textContent=ok?"You will no longer receive emails from ' + esc_(CFG.BRAND) + '.":"This link is invalid or expired.";' +
+      'b.style.display="none";}).withFailureHandler(function(){b.disabled=false;b.textContent="Try again";})' +
+      '.unsubscribeConfirm(T);};' +
+      '</script>');
+  } catch (err) {
+    audit_('UNSUB_PAGE_ERROR', err.message, 'recipient');
+    return page_('Something went wrong', '<p style="color:#555;line-height:1.6;margin:0">Please reply to our email and we will remove you manually.</p>');
+  }
+}
+
+// Public on purpose (called by the confirmation page). Token-only, rate limited, audited.
+function unsubscribeConfirm(token) {
+  token = String(token || '');
+  if (!/^[A-Za-z0-9-]{8,64}$/.test(token)) return false;
+
+  var cache = CacheService.getScriptCache();
+  var n = Number(cache.get('unsub_n') || 0);
+  if (n > 120) throw new Error('Too many requests. Try again in a minute.');
+  cache.put('unsub_n', String(n + 1), 60);
+
+  return withLock_(15000, function () {
+    var sh = sheet_(CFG.SHEET_SUBS), c = CFG.COL, subs = readSubs_(sh);
+    var hits = subs.filter(function (s) { return s.token === token; });
+    if (!hits.length) { audit_('UNSUBSCRIBE', 'token not found', 'recipient'); return false; }
+
+    var emails = {};
+    hits.forEach(function (s) { emails[s.email.toLowerCase()] = true; });
+    if (Object.keys(emails).length > 1) {      // ambiguous token: refuse rather than hit the wrong person
+      audit_('UNSUBSCRIBE', 'ambiguous token, ' + Object.keys(emails).length + ' addresses', 'recipient');
+      return false;
+    }
+    var email = Object.keys(emails)[0];
+    subs.forEach(function (s) {
+      if (s.email.toLowerCase() === email) sh.getRange(s.row, c.STATUS).setValue('Unsubscribed');
+    });
+    suppress_(email, 'Unsubscribed via link');
+    audit_('UNSUBSCRIBE', email.replace(/^(.).*(@.*)$/, '$1***$2'), 'recipient');
+    return true;
+  });
+}
+/* === END: ARTIMAIL UNSUBSCRIBE WEB APP === */
+
+
+/* === START: ARTIMAIL SETUP === */
+// Idempotent: safe to run again. Never overwrites existing headers, data or the Message sheet.
+function setupArtiMail() {
+  requireAdmin_();
+  var ss = SpreadsheetApp.getActive();
+
+  var subs = ss.getSheetByName(CFG.SHEET_SUBS) || ss.insertSheet(CFG.SHEET_SUBS);
+  if (!subs.getRange('A1').getValue()) {
+    subs.getRange(1, 1, 1, 6).setValues([['Name', 'Number', 'Email', 'Status', 'Last Sent', 'Token']])
+      .setFontWeight('bold').setBackground('#111111').setFontColor('#FFFFFF');
+    subs.setFrozenRows(1);
+    subs.setColumnWidths(1, 6, 180);
+  }
+  subs.getRange('B:B').setNumberFormat('@');            // keeps leading 0 / +63
+  subs.getRange('E:E').setNumberFormat('yyyy-mm-dd hh:mm');
+  subs.getRange('D2:D').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(CFG.STATUS_LIST, true).setAllowInvalid(false).build());
+
+  var msg = ss.getSheetByName(CFG.SHEET_MSG) || ss.insertSheet(CFG.SHEET_MSG);
+  if (!msg.getRange('A1').getValue()) {
+    msg.getRange('A1:B8').setValues([
+      ['Subject', 'Introducing ArtiBytte — built for Philippine business'],
+      ['Label (ANNOUNCEMENT / NEW PRODUCT)', 'ANNOUNCEMENT'],
+      ['Headline', 'Smarter systems for growing businesses.'],
+      ['Body (blank line = new paragraph)', 'We build specialized business systems on one shared foundation.\n\nThis update shares what is new and what is coming next.'],
+      ['Image URL (optional, https)', ''],
+      ['Button label', 'Learn more'],
+      ['Button link', CFG.WEBSITE],
+      ['Preview text', 'What is new at ArtiBytte Inc.']
+    ]);
+    msg.getRange('A1:A8').setFontWeight('bold');
+    msg.setColumnWidth(1, 260); msg.setColumnWidth(2, 560);
+    msg.getRange('B1:B8').setWrap(true).setVerticalAlignment('top');
+  }
+
+  opSheet_(CFG.SHEET_LOG, LOG_HEADERS);
+  opSheet_(CFG.SHEET_CAMPAIGNS, CAMPAIGN_HEADERS);
+  opSheet_(CFG.SHEET_AUDIT, AUDIT_HEADERS);
+  opSheet_(CFG.SHEET_SUPP, SUPP_HEADERS);
+
+  // Create the trigger only if it does not exist; remove accidental duplicates.
+  var existing = ScriptApp.getProjectTriggers().filter(function (t) { return t.getHandlerFunction() === 'onEditSend'; });
+  existing.slice(1).forEach(function (t) { ScriptApp.deleteTrigger(t); });
+  if (!existing.length) ScriptApp.newTrigger('onEditSend').forSpreadsheet(ss).onEdit().create();
+
+  audit_('SETUP', 'trigger ' + (existing.length ? 'already present' : 'created'));
+  SpreadsheetApp.getUi().alert('ArtiBytte Mail is ready. Edit the "Message" sheet, then add emails to "Subscribers".');
+}
+/* === END: ARTIMAIL SETUP === */
+function sendPlain() {
+  const body = `PASTE THE BODY ABOVE HERE`;
+  MailApp.sendEmail({
+    to: 'iyong-email@gmail.com',
+    subject: "Your network shouldn't depend on a SIM or a social account",
+    body: body.replace('[First Name]', 'Test'),
+    name: 'articardd team',
+    replyTo: 'support@artibytte.com'
+  });
+}
