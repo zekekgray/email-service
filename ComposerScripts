@@ -1,0 +1,101 @@
+<!-- === START: COMPOSER SCRIPTS === -->
+<script>
+  /* === START: DEBUG ERROR EDIT === */
+  window.onerror = function (msg, src, line) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;background:#B3261E;color:#fff;padding:12px 16px;border-radius:12px;font:12px monospace;z-index:9999';
+    d.textContent = 'Script error: ' + msg + ' (line ' + line + ')';
+    document.body.appendChild(d);
+  };
+  /* === END: DEBUG ERROR EDIT === */
+
+  var FIELDS = ['subject','eyebrow','headline','body','image','ctaLabel','ctaUrl','preheader'];
+  var stats = { active:0, fresh:0, quota:0 };
+  var timer = null, reqId = 0;
+
+  function $(id) { return document.getElementById(id); }
+
+  function getMsg() {
+    var m = {};
+    FIELDS.forEach(function (f) { m[f] = $(f).value.trim(); });
+    return m;
+  }
+
+  function setMsg(m) {
+    FIELDS.forEach(function (f) { $(f).value = m[f] || ''; });
+  }
+
+  function toast(text, isErr) {
+    var t = $('toast');
+    t.textContent = text;
+    t.className = 'show' + (isErr ? ' err' : '');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { t.className = ''; }, 3200);
+  }
+
+  function busy(on) {
+    ['btnSave','btnTest','btnNew','btnAll'].forEach(function (id) { $(id).disabled = on; });
+  }
+
+  function showStats(s) {
+    stats = s;
+    $('stats').textContent = s.active + ' active  ·  ' + s.fresh + ' new  ·  ' + s.quota + ' emails left today';
+    $('btnNew').textContent = 'Send to NEW (' + s.fresh + ')';
+    $('btnAll').textContent = 'Send to ALL (' + s.active + ')';
+  }
+
+  function refreshPreview() {
+    var id = ++reqId;
+    google.script.run
+      .withSuccessHandler(function (html) { if (id === reqId) $('frame').srcdoc = html; })
+      .withFailureHandler(function (e) { toast(e.message, true); })
+      .composerPreview(getMsg());
+  }
+
+  function queuePreview() {
+    clearTimeout(timer);
+    timer = setTimeout(refreshPreview, 500);
+  }
+
+  function save() {
+    busy(true);
+    google.script.run
+      .withSuccessHandler(function (s) { showStats(s); busy(false); toast('Saved. New subscribers will receive this message.'); })
+      .withFailureHandler(function (e) { busy(false); toast(e.message, true); })
+      .composerSave(getMsg());
+  }
+
+  function send(mode) {
+    var m = getMsg();
+    if (!m.subject || !m.headline) { toast('Subject and Headline are required.', true); return; }
+    var n = mode === 'all' ? stats.active : mode === 'new' ? stats.fresh : 1;
+    if (mode !== 'test') {
+      if (!n) { toast('No recipients to send to.', true); return; }
+      if (!confirm('Send "' + m.subject + '" to ' + n + ' people?')) return;
+    }
+    busy(true);
+    google.script.run
+      .withSuccessHandler(function (r) {
+        busy(false); showStats(r.stats);
+        toast(mode === 'test' ? 'Test sent to ' + r.to : 'Sent ' + r.sent + ' emails.');
+      })
+      .withFailureHandler(function (e) { busy(false); toast(e.message, true); })
+      .composerSend(m, mode);
+  }
+
+  /* === START: COMPOSER EVENTS === */
+  FIELDS.forEach(function (f) { $(f).addEventListener('input', queuePreview); });
+  $('btnSave').onclick = save;
+  $('btnTest').onclick = function () { send('test'); };
+  $('btnNew').onclick  = function () { send('new'); };
+  $('btnAll').onclick  = function () { send('all'); };
+  $('vDesk').onclick = function () { $('frame').className = ''; $('vDesk').className = 'on'; $('vMob').className = ''; };
+  $('vMob').onclick  = function () { $('frame').className = 'mobile'; $('vMob').className = 'on'; $('vDesk').className = ''; };
+  /* === END: COMPOSER EVENTS === */
+
+  google.script.run
+    .withSuccessHandler(function (d) { setMsg(d.msg); showStats(d.stats); refreshPreview(); })
+    .withFailureHandler(function (e) { toast(e.message, true); })
+    .composerLoad();
+</script>
+<!-- === END: COMPOSER SCRIPTS === -->
