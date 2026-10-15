@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<!-- === START: COMPOSER HTML === -->
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArtiMail Composer</title>
+  <?!= composerInclude_('ComposerStyles') ?>
+</head>
+<body>
+  <div class="app">
+
+    <!-- FORM -->
+    <section class="pane form" aria-label="Message editor">
+      <div class="brand">ARTIBYTTE <span>MAIL</span></div>
+
+      <label>Subject
+        <input id="subject" placeholder="Email subject line" required maxlength="150" autocomplete="off">
+      </label>
+
+      <label>Label <em>(small text above the headline)</em>
+        <input id="eyebrow" list="labels" placeholder="ANNOUNCEMENT" maxlength="40" autocomplete="off">
+        <datalist id="labels">
+          <!-- === START: LABEL OPTIONS EDIT === -->
+          <option value="ANNOUNCEMENT"></option>
+          <option value="NEW PRODUCT"></option>
+          <option value="UPDATE"></option>
+          <option value="OFFER"></option>
+          <!-- === END: LABEL OPTIONS EDIT === -->
+        </datalist>
+      </label>
+
+      <label>Headline
+        <input id="headline" placeholder="Big headline" required maxlength="120" autocomplete="off">
+      </label>
+
+      <label>Message <em>(blank line = new paragraph)</em>
+        <textarea id="body" rows="7" required></textarea>
+      </label>
+
+      <label>Image URL <em>(optional, https)</em>
+        <input id="image" type="url" inputmode="url" pattern="https://.+" title="Must start with https://" placeholder="https://..." autocomplete="off">
+      </label>
+
+      <div class="row">
+        <label>Button label
+          <input id="ctaLabel" placeholder="Learn more" maxlength="40" autocomplete="off">
+        </label>
+        <label>Button link
+          <input id="ctaUrl" type="url" inputmode="url" placeholder="https://..." autocomplete="off">
+        </label>
+      </div>
+
+      <label>Preview text <em>(shows in the inbox list)</em>
+        <input id="preheader" maxlength="150" autocomplete="off">
+      </label>
+
+      <div class="stats" id="stats">Loading…</div>
+
+      <div class="actions">
+        <button type="button" class="ghost" id="btnSave">Save</button>
+        <button type="button" class="ghost" id="btnTest">Send test to me</button>
+        <button type="button" class="solid" id="btnNew">Send to NEW</button>
+        <button type="button" class="gold" id="btnAll">Send to ALL</button>
+      </div>
+    </section>
+
+    <!-- PREVIEW -->
+    <section class="pane preview" aria-label="Email preview">
+      <div class="bar">
+        <span>LIVE PREVIEW</span>
+        <div class="seg" role="group" aria-label="Preview size">
+          <button type="button" id="vDesk" class="on" aria-pressed="true">Desktop</button>
+          <button type="button" id="vMob" aria-pressed="false">Mobile</button>
+        </div>
+      </div>
+      <div class="stage"><iframe id="frame" title="Email preview"></iframe></div>
+    </section>
+
+  </div>
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <?!= composerInclude_('ComposerScripts') ?>
+</body>
+</html>
+<!-- === END: COMPOSER HTML === -->
