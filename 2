@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title><?= msg.subject ?></title>
+<style>
+  body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
+  table,td{mso-table-lspace:0;mso-table-rspace:0;border-collapse:collapse}
+  img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic}
+  body{margin:0!important;padding:0!important;width:100%!important;background:#0b0c0f}
+  a{color:#e3b27f;text-decoration:none}
+  @media only screen and (max-width:620px){
+    .wrap{width:100%!important}
+    .px{padding-left:24px!important;padding-right:24px!important}
+    .h1{font-size:34px!important;line-height:38px!important}
+    .col{display:block!important;width:100%!important;padding:0 0 18px 0!important}
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#0b0c0f;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0b0c0f;"><?= msg.preheader ?></div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#0b0c0f" style="background:#0b0c0f;">
+<tr><td align="center" bgcolor="#ffffff" style="padding:0;background:#ffffff;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<!-- === START: EMAIL BODY === -->
+<tr><td class="px" bgcolor="#ffffff" style="padding:40px 40px 48px 40px;background:#ffffff;">
+
+<!-- 01 OPENING -->
+<h2 style="margin:0 0 18px 0;font-family:Fraunces,Georgia,serif;font-weight:400;font-size:22px;line-height:28px;letter-spacing:-.3px;color:#111318;">Your network is about to become more than a collection of contacts.</h2>
+<? if (msg.image) { ?><img src="<?= msg.image ?>" width="520" alt="" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:12px;margin:0 0 24px 0;"><? } ?>
+<p style="margin:0 0 14px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">Hi <?= firstName ?>,</p>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">The articardd team is working toward a better way to connect your relationships, opportunities, and decisions into one continuous system.</p>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">Our latest update: the ArtiByte Executive Protocol is now integrated into articardd. We're building on that foundation to help professionals do more with the relationships they already have, and discover the ones they haven't made yet.</p>
+
+<!-- 02 FOUR PILLARS -->
+<p style="margin:28px 0 6px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#b06f2c;">Connect · Discover · Decide · Continue</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+<tr><td style="border-top:1px solid #e5e7eb;padding:20px 0 14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;"><tr><td width="32" height="32" align="center" valign="middle" bgcolor="#f6efe6" style="width:32px;height:32px;border-radius:10px;background:#f6efe6;font-family:'Segoe UI Symbol','Arial Unicode MS',Arial,sans-serif;font-size:15px;line-height:32px;font-weight:600;color:#b06f2c;">⇄</td></tr></table>
+<div style="font-family:Fraunces,Georgia,serif;font-size:15px;line-height:21px;font-weight:500;color:#111318;padding:0 0 4px 0;">Connect: your contacts, one gesture away</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;">We're developing a more intuitive contact experience. Simply slide a contact to reveal quick actions for calling, emailing, or sending an iMessage or text. Spend less time navigating menus and more time building relationships.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;">Your contacts should be more than names in a database. They should be the starting point for meaningful action.</div></td></tr>
+
+<tr><td style="border-top:1px solid #e5e7eb;padding:20px 0 14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;"><tr><td width="32" height="32" align="center" valign="middle" bgcolor="#f6efe6" style="width:32px;height:32px;border-radius:10px;background:#f6efe6;font-family:'Segoe UI Symbol','Arial Unicode MS',Arial,sans-serif;font-size:15px;line-height:32px;font-weight:600;color:#b06f2c;">⌕</td></tr></table>
+<div style="font-family:Fraunces,Georgia,serif;font-size:15px;line-height:21px;font-weight:500;color:#111318;padding:0 0 4px 0;">Discover: find opportunities beyond your network</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;">We're working toward an AI-powered Human Discovery Engine designed to help you explore relevant people, jobs, projects, collaborations, and business opportunities.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;">Instead of relying entirely on who you already know, imagine being able to discover who you should meet, what opportunities may fit your goals, and where your next collaboration could begin. The objective is to help you turn connections into possibilities, and possibilities into action.</div></td></tr>
+
+<tr><td style="border-top:1px solid #e5e7eb;padding:20px 0 14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;"><tr><td width="32" height="32" align="center" valign="middle" bgcolor="#f6efe6" style="width:32px;height:32px;border-radius:10px;background:#f6efe6;font-family:'Segoe UI Symbol','Arial Unicode MS',Arial,sans-serif;font-size:15px;line-height:32px;font-weight:600;color:#b06f2c;">◈</td></tr></table>
+<div style="font-family:Fraunces,Georgia,serif;font-size:15px;line-height:21px;font-weight:500;color:#111318;padding:0 0 4px 0;">Decide: a smarter way to think and act</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;">With the Executive Protocol integrated into articardd, we're building toward a more structured way to support decision-making for CEOs, founders, consultants, and freelancers. It is designed to bring greater structure to complex decisions, preserve important context, and help connect goals, relationships, priorities, and next steps.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;">For a founder, that could mean evaluating an opportunity. For a CEO, organizing priorities. For a freelancer, identifying the next project or client relationship worth pursuing.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;">The goal is not to replace human judgment. It is to help you make more informed decisions, maintain direction, and spend your attention where it matters most.</div></td></tr>
+
+<tr><td style="border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;padding:20px 0 14px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 10px 0;"><tr><td width="32" height="32" align="center" valign="middle" bgcolor="#f6efe6" style="width:32px;height:32px;border-radius:10px;background:#f6efe6;font-family:'Segoe UI Symbol','Arial Unicode MS',Arial,sans-serif;font-size:15px;line-height:32px;font-weight:600;color:#b06f2c;">✎</td></tr></table>
+<div style="font-family:Fraunces,Georgia,serif;font-size:15px;line-height:21px;font-weight:500;color:#111318;padding:0 0 4px 0;">Continue: AI Notes · Mitochondria · Continuity</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;">We're also developing a more connected approach to capturing and carrying forward knowledge.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;"><strong style="font-weight:600;color:#111318;">AI Notes</strong> help organize important information, insights, decisions, and follow-ups.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:6px;"><strong style="font-weight:600;color:#111318;">Mitochondria</strong> is part of our broader vision for preserving the underlying context and supporting the continuity of your work.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:6px;"><strong style="font-weight:600;color:#111318;">Continuity</strong> is the principle that important context, commitments, and next steps should carry forward instead of being lost between conversations, meetings, and projects.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;padding-top:8px;">Together, these concepts point toward a system that does more than store information. It helps keep your work connected over time.</div></td></tr>
+</table>
+
+<!-- 03 WHY THIS MATTERS -->
+<p style="margin:28px 0 10px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#b06f2c;">Why this matters</p>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">For founders, executives, and independent professionals, productivity is not simply about doing more tasks. It is about making better decisions, finding the right people, recognizing opportunities, and following through consistently.</p>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">That is the direction we're pursuing with articardd and the Executive Protocol: a more intelligent relationship and opportunity system designed to help you multiply your productive capacity, strengthen your business relationships, and create more opportunities for revenue growth.</p>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">Our ambition is to help you work toward 10× greater output and opportunity, not through another disconnected tool, but through a system that connects your network, knowledge, and actions.</p>
+
+<!-- 04 PRINCIPLE -->
+<p style="margin:28px 0 10px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#b06f2c;">One evolving system. Your network. Your continuity.</p>
+<div style="margin:0 0 12px 0;font-family:Fraunces,Georgia,serif;font-size:18px;line-height:24px;font-weight:400;color:#111318;">Your identity. Your contacts. Your control.</div>
+<p style="margin:0 0 18px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">articardd began with that simple principle. We're building on it so your professional network can become more useful, more connected, and more valuable over time.</p>
+<p style="margin:0 0 28px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:14px;line-height:22px;color:#3f444c;">More capabilities are in development as the articardd team continues working toward the best way to put AI to work for people: not just to generate answers, but to support meaningful decisions, relationships, and progress. Thank you for being part of the journey.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 28px 0;"><tr><td bgcolor="#c78a4d" style="border-radius:999px;background:#c78a4d;"><a href="https://articardd.com" style="display:inline-block;padding:11px 22px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;font-weight:600;color:#100b06;border-radius:999px;">Visit articardd.com</a></td></tr></table>
+
+<p style="margin:0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;color:#6b7078;">— <strong style="font-weight:600;color:#111318;">Christine Phoebe</strong><br>Senior AI Architect, Product Development Team<br>A product of the ArtiByte ecosystem<br><a href="mailto:support@artibytte.com" style="color:#b06f2c;">support@artibytte.com</a></p>
+</td></tr>
+<!-- === END: EMAIL BODY === -->
+</table></td></tr>
+<!-- === START: POSTSCRIPT === -->
+<tr><td align="center" bgcolor="#ffffff" style="padding:0;background:#ffffff;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<tr><td class="px" style="padding:0 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td height="1" style="height:1px;line-height:1px;font-size:1px;border-top:1px solid #e5e7eb;">&nbsp;</td></tr></table></td></tr>
+<tr><td class="px" style="padding:28px 40px 20px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" valign="middle">
+<a href="https://artibytte.com/" style="text-decoration:none;"><img src="https://artibytte.com/logo-256.png" width="84" height="84" alt="ArtiBytte" style="display:block;margin:0 auto;border:0;border-radius:21px;"></a>
+</td></tr></table></td></tr>
+
+</table></td></tr>
+<tr><td align="center" bgcolor="#14110e" style="padding:0;background:#14110e;background-image:linear-gradient(135deg,#0b0c0f 0%,#1d1610 60%,#3a2412 100%);">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<tr><td class="px" style="text-align:center;padding:72px 40px 72px 40px;">
+<p style="margin:0 0 22px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:600;color:#e3b27f;">Custom business software</p>
+<h1 class="h1" style="margin:0;font-family:Fraunces,Georgia,serif;font-weight:400;font-size:46px;line-height:48px;letter-spacing:-1px;color:#f6f4ef;"><em style="color:#e3b27f;">One system.</em><br>Built for your business.</h1>
+<p style="margin:32px 0 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;"><a href="https://products.artibytte.com/" style="color:#e3b27f;text-decoration:underline;">Explore products →</a></p>
+</td></tr>
+
+</table></td></tr>
+<tr><td align="center" bgcolor="#15171b" style="padding:0;background:#15171b;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<tr><td class="px" style="text-align:center;padding:64px 40px 40px 40px;">
+<h2 style="margin:0;font-family:Fraunces,Georgia,serif;font-weight:300;font-size:38px;line-height:41px;letter-spacing:-1.2px;color:#f6f4ef;">One platform.<br>Different businesses.</h2>
+<p style="margin:26px 0 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:16px;line-height:27px;color:#9fa4ad;">ArtiBytte provides the technology behind the software we build for businesses. Instead of starting from scratch every time, we build on one proven foundation and adapt it to the way each business actually works.</p>
+<p style="margin:18px 0 0 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:16px;line-height:27px;color:#9fa4ad;">That means your business gets its own software — designed around your people, processes, and needs — while we take care of the technology underneath.</p>
+</td></tr>
+<tr><td class="px" style="text-align:center;padding:0 40px 56px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="text-align:center;border-top:1px solid #2a2d33;padding:32px 0;">
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;color:#6f737b;">01</div>
+<div style="font-family:Fraunces,Georgia,serif;font-size:24px;line-height:28px;font-weight:500;color:#f5f2ec;padding:10px 0;">Tell us how your business works.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:15px;line-height:25px;color:#8c9099;">We learn what you need, what you currently use, and where things can work better.</div></td></tr><tr><td style="text-align:center;border-top:1px solid #2a2d33;padding:32px 0;">
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;color:#6f737b;">02</div>
+<div style="font-family:Fraunces,Georgia,serif;font-size:24px;line-height:28px;font-weight:500;color:#f5f2ec;padding:10px 0;">We build the system around it.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:15px;line-height:25px;color:#8c9099;">Your software is designed specifically for your business, rather than forcing your business to change around generic software.</div></td></tr><tr><td style="text-align:center;border-top:1px solid #2a2d33;border-bottom:1px solid #2a2d33;padding:32px 0;">
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;color:#6f737b;">03</div>
+<div style="font-family:Fraunces,Georgia,serif;font-size:24px;line-height:28px;font-weight:500;color:#f5f2ec;padding:10px 0;">You use it. We keep improving it.</div>
+<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:15px;line-height:25px;color:#8c9099;">As your business grows, the system can grow with it.</div></td></tr></table></td></tr>
+
+</table></td></tr>
+<tr><td align="center" bgcolor="#14110e" style="padding:0;background:#14110e;background-image:linear-gradient(135deg,#1d1610 0%,#3a2412 100%);">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<tr><td class="px" align="center" style="text-align:center;padding:56px 40px;">
+<div style="font-family:Fraunces,Georgia,serif;font-size:32px;line-height:37px;letter-spacing:-.8px;color:#f6f4ef;">Let's build something that matters.</div>
+<p style="margin:16px 0 28px 0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:16px;line-height:26px;color:#c7cbd1;">Tell us how your business works. We'll build the system around it.</p>
+<p style="margin:0;font-family:Inter,Arial,Helvetica,sans-serif;font-size:13px;"><a href="mailto:support@artibytte.com?subject=Business%20%26%20Product" style="color:#e3b27f;text-decoration:underline;">Start a conversation →</a></p>
+</td></tr>
+
+</table></td></tr>
+<tr><td align="center" bgcolor="#0b0c0f" style="padding:0;background:#0b0c0f;">
+<table role="presentation" class="wrap" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;">
+<tr><td class="px" align="center" style="padding:48px 40px 16px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="col" valign="top" width="25%" align="center" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13.5px;line-height:26px;">
+<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9298a3;padding-bottom:8px;">Site</div>
+<a href="https://artibytte.com" style="color:#c7cbd1;">Home</a><br><a href="https://products.artibytte.com" style="color:#c7cbd1;">Products</a><br><a href="https://vex.artibytte.com" style="color:#c7cbd1;">Vex</a><br><a href="https://work.artibytte.com" style="color:#c7cbd1;">Work</a></td><td class="col" valign="top" width="25%" align="center" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13.5px;line-height:26px;">
+<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9298a3;padding-bottom:8px;">Company</div>
+<a href="https://company.artibytte.com" style="color:#c7cbd1;">About</a><br><a href="https://connect.artibytte.com" style="color:#c7cbd1;">Connect</a><br><a href="https://career.artibytte.com" style="color:#c7cbd1;">Careers</a><br><a href="https://company.artibytte.com/partnerships" style="color:#c7cbd1;">Partnerships</a></td><td class="col" valign="top" width="25%" align="center" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13.5px;line-height:26px;">
+<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9298a3;padding-bottom:8px;">Ecosystem</div>
+<a href="https://livityportal.artiplay.app" style="color:#c7cbd1;">ArtiPlay</a><br><a href="https://articardd.com" style="color:#c7cbd1;">ArtiStock</a><br><a href="https://articardd.com" style="color:#c7cbd1;">ArtiCardd</a><br><a href="https://products.artibytte.com/artifield" style="color:#c7cbd1;">ArtiField</a><br><a href="https://products.artibytte.com/bht" style="color:#c7cbd1;">Business Health Toolkit</a><br><a href="https://products.artibytte.com/artidrive" style="color:#c7cbd1;">ArtiDrive</a><br><a href="https://products.artibytte.com/vexai" style="color:#c7cbd1;">VEX AI</a><br><a href="https://arcade.artiplay.app" style="color:#c7cbd1;">OWLBOUND</a><br><a href="https://products.artibytte.com/artislide" style="color:#c7cbd1;">ArtiSlide</a><br><a href="https://products.artibytte.com/artihome" style="color:#c7cbd1;">ArtiHome</a></td><td class="col" valign="top" width="25%" align="center" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:13.5px;line-height:26px;">
+<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9298a3;padding-bottom:8px;">Support</div>
+<a href="mailto:support@artibytte.com" style="color:#c7cbd1;">Contact us</a><br><a href="mailto:support@artibytte.com" style="color:#c7cbd1;">Partner with us</a><br><a href="mailto:support@artibytte.com" style="color:#c7cbd1;">Request a demo</a></td></tr></table></td></tr>
+<tr><td class="px" align="center" style="padding:16px 40px 8px 40px;"><table role="presentation" align="center" cellpadding="0" cellspacing="0"><tr><td style="padding:0 8px;"><a href="https://facebook.com/YOUR_PAGE" style="display:block;text-decoration:none;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border:1px solid #35383d;border-radius:18px;"><tr><td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;">
+<img src="https://raw.githubusercontent.com/zekekgray/artibytte.com/main/social/facebook.png" width="16" height="16" alt="Facebook" style="display:block;margin:0 auto;border:0;font-size:10px;color:#c7cbd1;"></td></tr></table></a></td><td style="padding:0 8px;"><a href="https://instagram.com/artibytte.official" style="display:block;text-decoration:none;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border:1px solid #35383d;border-radius:18px;"><tr><td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;">
+<img src="https://raw.githubusercontent.com/zekekgray/artibytte.com/main/social/instagram.png" width="16" height="16" alt="Instagram" style="display:block;margin:0 auto;border:0;font-size:10px;color:#c7cbd1;"></td></tr></table></a></td><td style="padding:0 8px;"><a href="https://linkedin.com/company/YOUR_PAGE" style="display:block;text-decoration:none;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border:1px solid #35383d;border-radius:18px;"><tr><td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;">
+<img src="https://raw.githubusercontent.com/zekekgray/artibytte.com/main/social/linkedin.png" width="16" height="16" alt="LinkedIn" style="display:block;margin:0 auto;border:0;font-size:10px;color:#c7cbd1;"></td></tr></table></a></td><td style="padding:0 8px;"><a href="https://x.com/YOUR_HANDLE" style="display:block;text-decoration:none;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border:1px solid #35383d;border-radius:18px;"><tr><td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;">
+<img src="https://raw.githubusercontent.com/zekekgray/artibytte.com/main/social/x.png" width="16" height="16" alt="X" style="display:block;margin:0 auto;border:0;font-size:10px;color:#c7cbd1;"></td></tr></table></a></td></tr></table></td></tr>
+<tr><td class="px" align="center" style="padding:8px 40px 48px 40px;"><div style="border-top:1px solid #1f2227;padding-top:22px;font-family:Inter,Arial,Helvetica,sans-serif;font-size:12.5px;line-height:21px;color:#9298a3;">
+© <?= new Date().getFullYear() ?> artibytte. All rights reserved.<br>
+<a href="https://artibytte.com/privacy" style="color:#9298a3;">Privacy Policy</a> · <a href="https://artibytte.com/terms" style="color:#9298a3;">Terms of Service</a> · <a href="https://artibytte.com/cookies" style="color:#9298a3;">Cookie Policy</a>
+</div></td></tr>
+<!-- === END: POSTSCRIPT === -->
+</table>
+</td></tr>
+</table>
+</body>
+</html>
